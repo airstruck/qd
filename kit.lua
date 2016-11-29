@@ -16,7 +16,13 @@ local function plan (t, clock, seq, rate, offset)
             local data = t.dataByName[drumName]
             local osc = t.oscsByName[drumName]
             if not osc then
-                data = { time = 0, n = 0 }
+                data = {
+                    clock = clock,
+                    gate = false,
+                    onTime = math.huge,
+                    offTime = math.huge,
+                    n = 0,
+                }
                 osc = assert(t[drumName](data))
                 t.dataByName[drumName] = data
                 t.oscsByName[drumName] = osc
@@ -26,7 +32,9 @@ local function plan (t, clock, seq, rate, offset)
                     t.oscs = t.oscs + osc
                 end
                 clock:always(function (dt)
-                    data.time = data.time + dt
+                    if data.gate then
+                        data.onTime = data.onTime + dt
+                    end
                 end)
             end
             local time = offset or 0
@@ -34,7 +42,8 @@ local function plan (t, clock, seq, rate, offset)
                 local n = tonumber(char, 36)
                 if n then
                     clock:atSecond(time, function ()
-                        data.time = 0
+                        data.gate = true
+                        data.onTime = 0
                         data.n = n
                     end)
                 elseif char == '-' then
