@@ -7,6 +7,26 @@ local Sin = require (REL .. 'sin')
 
 local nullOsc = Osc { freq = 0 }
 
+local function updateGate (dt, data)
+    if data.gate then
+        data.onTime = data.onTime + dt
+    else
+        data.offTime = data.offTime + dt
+    end
+end
+
+local function openGate (dt, args)
+    args.osc.freq = Util.semitoneToFreq(args.semi + args.n)
+    args.data.gate = true
+    args.data.onTime = 0
+    args.data.n = args.n
+end
+
+local function closeGate (dt, args)
+    args.data.gate = false
+    args.data.offTime = 0
+end
+
 local function plan (t, clock, seq, rate, offset)
     local timestep = 1 / rate
     for line in seq:gmatch('[^\n]+') do
@@ -33,30 +53,24 @@ local function plan (t, clock, seq, rate, offset)
                 else
                     t.oscs = t.oscs + (osc .. effect)
                 end
-                clock:always(function (dt)
-                    if data.gate then
-                        data.onTime = data.onTime + dt
-                    else
-                        data.offTime = data.offTime + dt
-                    end
-                end)
+                clock:always(updateGate, data)
             end
             local time = offset or 0
             for char in pattern:gmatch('.') do
                 local n = tonumber(char, 36)
                 if n then
-                    clock:atSecond(time, function ()
-                        osc.freq = Util.semitoneToFreq(semi + n)
-                        data.gate = true
-                        data.onTime = 0
-                    end)
+                    clock:atSecond(time, openGate, {
+                        data = data,
+                        semi = semi,
+                        osc = osc,
+                        n = n,
+                    })
                 elseif char == '.' then
-                    clock:atSecond(time, function ()
-                        if data.gate then
-                            data.gate = false
-                            data.offTime = 0
-                        end
-                    end)
+                    clock:atSecond(time, closeGate, {
+                        data = data,
+                        semi = semi,
+                        osc = osc,
+                    })
                 elseif char == '|' then
                     time = time - timestep
                 end

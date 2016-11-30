@@ -8,6 +8,20 @@ local Util = require (REL .. 'util')
 
 local nullOsc = Osc { freq = 0 }
 
+local function updateGate (dt, data)
+    if data.gate then
+        data.onTime = data.onTime + dt
+    else
+        data.offTime = data.offTime + dt
+    end
+end
+
+local function openGate (dt, args)
+    args.data.gate = true
+    args.data.onTime = 0
+    args.data.n = args.n
+end
+
 local function plan (t, clock, seq, rate, offset)
     local timestep = 1 / rate
     for line in seq:gmatch('[^\n]+') do
@@ -31,21 +45,13 @@ local function plan (t, clock, seq, rate, offset)
                 else
                     t.oscs = t.oscs + osc
                 end
-                clock:always(function (dt)
-                    if data.gate then
-                        data.onTime = data.onTime + dt
-                    end
-                end)
+                clock:always(updateGate, data)
             end
             local time = offset or 0
             for char in pattern:gmatch('.') do
                 local n = tonumber(char, 36)
                 if n then
-                    clock:atSecond(time, function ()
-                        data.gate = true
-                        data.onTime = 0
-                        data.n = n
-                    end)
+                    clock:atSecond(time, openGate, { data = data, n = n })
                 elseif char == '-' then
                 elseif char == '|' then
                     time = time - timestep

@@ -2,18 +2,22 @@
 
 local SoundUnit = require((...):gsub('[^.]*$', '') .. 'soundunit')
 
-local function always (t, f)
-    t.schedule.always[#t.schedule.always + 1] = f
+local function always (t, f, arg)
+    local i = #t.schedule.always + 1
+    t.schedule.always[i] = f
+    t.schedule.always.arg[i] = arg
 end
 
-local function atSample (t, index, f)
-    local funcs = t.schedule.sample[index] or {}
-    funcs[#funcs + 1] = f
+local function atSample (t, index, f, arg)
+    local funcs = t.schedule.sample[index] or { arg = {} }
+    local i = #funcs + 1
+    funcs[i] = f
+    funcs.arg[i] = arg
     t.schedule.sample[index] = funcs
 end
 
-local function atSecond (t, time, f)
-    return t:atSample(math.floor(time * t.rate) * t.channels, f)
+local function atSecond (t, time, f, arg)
+    return t:atSample(math.floor(time * t.rate) * t.channels, f, arg)
 end
 
 local function process (t, v)
@@ -36,10 +40,11 @@ local function tick (t)
     local dt = t.time - lastTime
     for i = 1, #t.schedule.always do
         local f = t.schedule.always[i]
-        f(dt)
+        local arg = t.schedule.always.arg[i]
+        f(dt, arg)
     end
     local funcs = t.schedule.sample[t.sample]
-    if funcs then for i = 1, #funcs do funcs[i](dt) end end
+    if funcs then for i = 1, #funcs do funcs[i](dt, funcs.arg[i]) end end
     if t.time < t.seconds then return true end 
 end
 
@@ -59,7 +64,10 @@ return function (t)
     t.timeFactor = 1 / t.rate / t.channels
     t.sample = -t.channels
     t.time = 0
-    t.schedule = { always = {}, sample = {} }
+    t.schedule = {
+        always = { arg = {} },
+        sample = {},
+    }
     return t
 end
 
